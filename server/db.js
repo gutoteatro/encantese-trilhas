@@ -9,16 +9,20 @@ const DB_NAME = process.env.DB_NAME || 'encantese_trilhas';
 let pool;
 
 export async function initializeDatabase() {
-  const bootstrapConnection = await mysql.createConnection({
-    host: DB_HOST,
-    port: DB_PORT,
-    user: DB_USER,
-    password: DB_PASSWORD,
-    multipleStatements: true,
-  });
+  try {
+    const bootstrapConnection = await mysql.createConnection({
+      host: DB_HOST,
+      port: DB_PORT,
+      user: DB_USER,
+      password: DB_PASSWORD,
+      multipleStatements: true,
+    });
 
-  await bootstrapConnection.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\``);
-  await bootstrapConnection.end();
+    await bootstrapConnection.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\``);
+    await bootstrapConnection.end();
+  } catch (err) {
+    console.log(`[db] Skipping DB creation - usually lacking global permissions or already exists (Easypanel).`);
+  }
 
   pool = mysql.createPool({
     host: DB_HOST,
