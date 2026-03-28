@@ -1,12 +1,14 @@
-import React from 'react';
-import { Pause, Play, Repeat, SkipBack, SkipForward, X } from 'lucide-react';
+import React, { useCallback, useRef } from 'react';
+import { Pause, Play, Repeat, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react';
 
 export default function AudioPlayer({
   currentTrack,
   isPlaying,
   isRepeatEnabled,
+  isMuted,
   onTogglePlay,
   onToggleRepeat,
+  onToggleMute,
   onNextTrack,
   onPreviousTrack,
   onSeek,
@@ -15,6 +17,49 @@ export default function AudioPlayer({
   durationLabel,
   onClosePlayer,
 }) {
+  const progressBarRef = useRef(null);
+
+  const seekByClientX = useCallback(
+    (clientX) => {
+      const barElement = progressBarRef.current;
+      if (!barElement) {
+        return;
+      }
+
+      const rect = barElement.getBoundingClientRect();
+      if (!rect.width) {
+        return;
+      }
+
+      const ratio = (clientX - rect.left) / rect.width;
+      onSeek(ratio);
+    },
+    [onSeek],
+  );
+
+  const handleProgressPointerDown = useCallback(
+    (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
+
+      event.preventDefault();
+      seekByClientX(event.clientX);
+
+      const handlePointerMove = (moveEvent) => {
+        seekByClientX(moveEvent.clientX);
+      };
+
+      const handlePointerUp = () => {
+        window.removeEventListener('pointermove', handlePointerMove);
+      };
+
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp, { once: true });
+    },
+    [seekByClientX],
+  );
+
   if (!currentTrack) {
     return null;
   }
@@ -49,18 +94,24 @@ export default function AudioPlayer({
           <button className="icon-button" aria-label="Próxima trilha" onClick={onNextTrack}>
             <SkipForward size={18} />
           </button>
+          <button
+            className={`icon-button ${isMuted ? 'active' : ''}`}
+            aria-label={isMuted ? 'Ativar som' : 'Silenciar'}
+            aria-pressed={isMuted}
+            onClick={onToggleMute}
+          >
+            {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          </button>
         </div>
 
         <div className="audio-progress-row">
           <span>{currentTimeLabel}</span>
           <button
+            ref={progressBarRef}
             className="audio-progress-bar"
+            type="button"
             aria-label="Ajustar progresso"
-            onClick={(event) => {
-              const rect = event.currentTarget.getBoundingClientRect();
-              const ratio = (event.clientX - rect.left) / rect.width;
-              onSeek(ratio);
-            }}
+            onPointerDown={handleProgressPointerDown}
           >
             <span className="audio-progress-fill" style={{ width: `${progressPercent}%` }} />
           </button>

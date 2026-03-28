@@ -20,7 +20,7 @@ export async function initializeDatabase() {
 
     await bootstrapConnection.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\``);
     await bootstrapConnection.end();
-  } catch (err) {
+  } catch {
     console.log(`[db] Skipping DB creation - usually lacking global permissions or already exists (Easypanel).`);
   }
 
@@ -51,14 +51,42 @@ export async function initializeDatabase() {
       url TEXT NOT NULL,
       drive_file_id VARCHAR(128) NULL,
       source VARCHAR(64) NOT NULL DEFAULT 'drive-link',
+      content_hash VARCHAR(128) NULL,
       added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_tracks_theme_id (theme_id),
+      INDEX idx_tracks_theme_hash_added (theme_id, content_hash, added_at),
       CONSTRAINT fk_tracks_theme
         FOREIGN KEY (theme_id)
         REFERENCES themes(id)
         ON DELETE CASCADE
     ) ENGINE=InnoDB;
   `);
+
+  const [contentHashColumnRows] = await pool.query(
+    `SELECT COUNT(*) AS count
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = ?
+       AND TABLE_NAME = 'tracks'
+       AND COLUMN_NAME = 'content_hash'`,
+    [DB_NAME],
+  );
+
+  if (Number(contentHashColumnRows?.[0]?.count || 0) === 0) {
+    await pool.query('ALTER TABLE tracks ADD COLUMN content_hash VARCHAR(128) NULL AFTER source');
+  }
+
+  const [hashIndexRows] = await pool.query(
+    `SELECT COUNT(*) AS count
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = ?
+       AND TABLE_NAME = 'tracks'
+       AND INDEX_NAME = 'idx_tracks_theme_hash_added'`,
+    [DB_NAME],
+  );
+
+  if (Number(hashIndexRows?.[0]?.count || 0) === 0) {
+    await pool.query('ALTER TABLE tracks ADD INDEX idx_tracks_theme_hash_added (theme_id, content_hash, added_at)');
+  }
 
   return pool;
 }
